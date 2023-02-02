@@ -1,5 +1,5 @@
 # Pandora
-    Rocky's Pandora box
+    Rocky's Box
 
 ## miniweb
     miniweb
