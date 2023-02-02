@@ -1,12 +1,12 @@
-package geecache
+package minicache
 
 import (
 	"fmt"
 	"log"
 	"sync"
 
-	"github.com/qingants/pandora/geecache/pb"
-	"github.com/qingants/pandora/geecache/singlefight"
+	"github.com/qingants/pandora/minicache/pb"
+	"github.com/qingants/pandora/minicache/singlefight"
 )
 
 type Getter interface {
@@ -61,7 +61,7 @@ func (g *Group) Get(key string) (ByteView, error) {
 	}
 
 	if v, ok := g.mainCache.get(key); ok {
-		log.Println("[GeeCache] hit")
+		log.Println("[MiniCache] hit")
 		return v, nil
 	}
 
@@ -75,7 +75,7 @@ func (g *Group) load(key string) (value ByteView, err error) {
 				if value, err = g.GetFromPeer(peer, key); err == nil {
 					return value, nil
 				}
-				log.Printf("[GeeCache] Failed to get from peer %v", err)
+				log.Printf("[MiniCache] Failed to get from peer %v", err)
 			}
 		}
 		return g.GetLocally(key)

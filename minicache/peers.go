@@ -1,6 +1,6 @@
-package geecache
+package minicache
 
-import "github.com/qingants/pandora/geecache/pb"
+import "github.com/qingants/pandora/minicache/pb"
 
 type PeerPicker interface {
 	PickPeer(key string) (peer PeerGetter, ok bool)

@@ -1,9 +1,9 @@
-package geecache
+package minicache
 
 import (
 	"sync"
 
-	"github.com/qingants/pandora/geecache/lru"
+	"github.com/qingants/pandora/minicache/lru"
 )
 
 type cache struct {

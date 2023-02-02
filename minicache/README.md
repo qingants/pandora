@@ -1,4 +1,4 @@
-# geecache
+# minicache
     https://github.com/golang/groupcache
 
 ## 步骤

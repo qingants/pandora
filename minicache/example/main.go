@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/qingants/pandora/geecache"
+	"github.com/qingants/pandora/minicache"
 )
 
 var db = map[string]string{
@@ -16,8 +16,8 @@ var db = map[string]string{
 	"yoyo":  "zhangyao",
 }
 
-func createGroup() *geecache.Group {
-	return geecache.NewGroup("scores", 2<<10, geecache.GetterFunc(func(key string) ([]byte, error) {
+func createGroup() *minicache.Group {
+	return minicache.NewGroup("scores", 2<<10, minicache.GetterFunc(func(key string) ([]byte, error) {
 		log.Printf("[slowDB] search key %s", key)
 		if v, ok := db[key]; ok {
 			return []byte(v), nil
@@ -26,18 +26,18 @@ func createGroup() *geecache.Group {
 	}))
 }
 
-func startCacheServer(addr string, addrs []string, gee *geecache.Group) {
-	peers := geecache.NewHTTPPool(addr)
+func startCacheServer(addr string, addrs []string, mini *minicache.Group) {
+	peers := minicache.NewHTTPPool(addr)
 	peers.Set(addrs...)
-	gee.RegisterPeers(peers)
-	log.Println("geecache is running at, ", addr)
+	mini.RegisterPeers(peers)
+	log.Println("minicache is running at, ", addr)
 	log.Fatal(http.ListenAndServe(addr[7:], peers))
 }
 
-func startAPIServer(apiAddr string, gee *geecache.Group) {
+func startAPIServer(apiAddr string, mini *minicache.Group) {
 	http.Handle("/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.URL.Query().Get("key")
-		view, err := gee.Get(key)
+		view, err := mini.Get(key)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -53,7 +53,7 @@ func main() {
 	var port int
 	var api bool
 
-	flag.IntVar(&port, "port", 8001, "GeeCache server port")
+	flag.IntVar(&port, "port", 8001, "minicache server port")
 	flag.BoolVar(&api, "api", false, "start a api server")
 	flag.Parse()
 
@@ -69,10 +69,10 @@ func main() {
 		addrs = append(addrs, v)
 	}
 
-	gee := createGroup()
+	mini := createGroup()
 	if api {
-		go startAPIServer(apiAddr, gee)
+		go startAPIServer(apiAddr, mini)
 	}
 
-	startCacheServer(addrMap[port], []string(addrs), gee)
+	startCacheServer(addrMap[port], []string(addrs), mini)
 }

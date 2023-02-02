@@ -1,4 +1,4 @@
-package geecache
+package minicache
 
 import (
 	"fmt"
@@ -10,12 +10,12 @@ import (
 	"sync"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/qingants/pandora/geecache/consistenthash"
-	"github.com/qingants/pandora/geecache/pb"
+	"github.com/qingants/pandora/minicache/consistenthash"
+	"github.com/qingants/pandora/minicache/pb"
 )
 
 const (
-	defaultBasePath = "/_geecache/"
+	defaultBasePath = "/_minicache/"
 	defaultReplicas = 50
 )
 
