@@ -1,4 +1,4 @@
-package mini
+package miniweb
 
 import (
 	"net/http"
