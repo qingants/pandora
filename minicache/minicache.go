@@ -80,7 +80,7 @@ func (g *Group) load(key string) (value ByteView, err error) {
 		}
 		return g.GetLocally(key)
 	})
-	if err != nil {
+	if err == nil {
 		return viewi.(ByteView), nil
 	}
 	return

@@ -164,7 +164,13 @@ func TestCache_Len(t *testing.T) {
 		want   int
 	}{
 		// TODO: Add test cases.
-		{name: ""},
+		{
+			name: "len",
+			fields: fields{
+				ll: list.New(),
+			},
+			want: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

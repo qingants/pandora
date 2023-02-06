@@ -45,7 +45,7 @@ func TestGetterFunc_Get(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	var db = map[string]string{
-		"rocky": "handsame",
+		"rocky": "handsome",
 		"amy":   "love",
 		"dim":   "cute",
 	}
@@ -65,7 +65,7 @@ func TestGet(t *testing.T) {
 
 	for k, v := range db {
 		if view, err := g.Get(k); err != nil || view.String() != v {
-			t.Fatalf("failed to get value %s", v)
+			t.Fatalf("failed to get value key=%s, value=%s, view=%s", k, v, view.String())
 		}
 		if _, err := g.Get(k); err != nil || loadCounts[k] > 1 {
 			t.Fatalf("cache %s miss", k)

@@ -7,27 +7,50 @@ import (
 
 type HandleFunc func(*Context)
 
+type RouterGroup struct {
+	prefix string
+	parent *RouterGroup
+	engine *Engine
+}
+
 type Engine struct {
+	*RouterGroup
 	router *router
+	groups []*RouterGroup
 }
 
 func NewEngine() *Engine {
-	return &Engine{
+	e := &Engine{
 		router: newRouter(),
 	}
+	e.RouterGroup = &RouterGroup{engine: e}
+	e.groups = []*RouterGroup{e.RouterGroup}
+	return e
 }
 
-func (e *Engine) AddRouter(method string, pattern string, handler HandleFunc) {
-	log.Printf("Route %s - %s", method, pattern)
-	e.router.addRoute(method, pattern, handler)
+func (g *RouterGroup) Group(prefix string) *RouterGroup {
+	engine := g.engine
+	newGroup := &RouterGroup{
+		prefix: g.prefix + "/" + prefix,
+		engine: engine,
+		parent: g,
+	}
+	engine.groups = append(engine.groups, newGroup)
+	return newGroup
 }
 
-func (e *Engine) GET(pattern string, handler HandleFunc) {
-	e.AddRouter("GET", pattern, handler)
+func (g *RouterGroup) addRouter(method string, pattern string, handler HandleFunc) {
+	pattern = g.prefix + pattern
+	log.Printf("Route %4s - %s", method, pattern)
+	g.engine.router.addRoute(method, pattern, handler)
 }
 
-func (e *Engine) POST(pattern string, handler HandleFunc) {
-	e.AddRouter("POST", pattern, handler)
+func (g *RouterGroup) GET(pattern string, handler HandleFunc) {
+	g.addRouter("GET", pattern, handler)
+}
+
+func (g *RouterGroup) POST(pattern string, handler HandleFunc) {
+	g.addRouter("POST", pattern, handler)
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
