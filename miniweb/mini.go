@@ -3,14 +3,16 @@ package miniweb
 import (
 	"log"
 	"net/http"
+	"strings"
 )
 
 type HandleFunc func(*Context)
 
 type RouterGroup struct {
-	prefix string
-	parent *RouterGroup
-	engine *Engine
+	prefix      string
+	parent      *RouterGroup
+	engine      *Engine
+	middlewares []HandleFunc
 }
 
 type Engine struct {
@@ -26,6 +28,10 @@ func NewEngine() *Engine {
 	e.RouterGroup = &RouterGroup{engine: e}
 	e.groups = []*RouterGroup{e.RouterGroup}
 	return e
+}
+
+func (g *RouterGroup) Use(middlewares ...HandleFunc) {
+	g.middlewares = append(g.middlewares, middlewares...)
 }
 
 func (g *RouterGroup) Group(prefix string) *RouterGroup {
@@ -54,7 +60,14 @@ func (g *RouterGroup) POST(pattern string, handler HandleFunc) {
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var middlewares []HandleFunc
+	for _, group := range e.groups {
+		if strings.HasPrefix(r.URL.Path, group.prefix) {
+			middlewares = append(middlewares, group.middlewares...)
+		}
+	}
 	c := NewContext(w, r)
+	c.handlers = middlewares
 	e.router.handle(c)
 }
 

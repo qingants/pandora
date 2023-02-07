@@ -1,13 +1,25 @@
 package main
 
 import (
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/qingants/pandora/miniweb"
 )
 
+func middlewareExample() miniweb.HandleFunc {
+	return func(ctx *miniweb.Context) {
+		t := time.Now()
+		ctx.Fail(500, "Internal Server Error")
+		log.Printf("[%d] %s in %v for group v2", ctx.StatusCode, ctx.Request.RequestURI, time.Since(t))
+	}
+}
+
 func main() {
 	r := miniweb.NewEngine()
+	r.Use(miniweb.Logger())
+
 	r.GET("/", func(ctx *miniweb.Context) {
 		ctx.HTML(http.StatusOK, "<h1>mini<h1>")
 	})
@@ -32,6 +44,7 @@ func main() {
 	}
 
 	v2 := r.Group("v2")
+	v2.Use(middlewareExample())
 	{
 		v2.GET("/hi/:name", func(ctx *miniweb.Context) {
 			ctx.String(http.StatusOK, "hi %s, you are at %s\n", ctx.Param("name"), ctx.Path)
