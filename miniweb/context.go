@@ -3,6 +3,7 @@ package miniweb
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -18,6 +19,8 @@ type Context struct {
 
 	handlers []HandleFunc
 	index    int
+
+	engine *Engine
 }
 
 func NewContext(w http.ResponseWriter, r *http.Request) *Context {
@@ -73,10 +76,21 @@ func (c *Context) JSON(code int, obj any) {
 	}
 }
 
-func (c *Context) HTML(code int, html string) {
+func (c *Context) HTML(code int, name string, data any) {
 	c.SetHeader("Content-Type", "text/html")
 	c.Status(code)
-	c.Writer.Write([]byte(html))
+	log.Printf("ExecuteTemplate params name=%s data=%v", name, data)
+	if err := c.engine.htmlTemplate.ExecuteTemplate(c.Writer, name, data); err != nil {
+		c.Fail(500, err.Error())
+	}
+	// if err := c.engine.htmlTemplate.ExecuteTemplate(c.Writer, "T", "<script>alert('you have been pwned')</script>"); err != nil {
+	// 	c.Fail(500, err.Error())
+	// }
+}
+
+func (c *Context) Data(code int, data []byte) {
+	c.Status(code)
+	c.Writer.Write(data)
 }
 
 func (c *Context) Fail(code int, msg string) {

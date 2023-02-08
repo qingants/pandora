@@ -1,6 +1,7 @@
 package miniweb
 
 import (
+	"html/template"
 	"log"
 	"net/http"
 	"path"
@@ -18,8 +19,10 @@ type RouterGroup struct {
 
 type Engine struct {
 	*RouterGroup
-	router *router
-	groups []*RouterGroup
+	router       *router
+	groups       []*RouterGroup
+	htmlTemplate *template.Template
+	funcMap      template.FuncMap
 }
 
 func NewEngine() *Engine {
@@ -28,6 +31,7 @@ func NewEngine() *Engine {
 	}
 	e.RouterGroup = &RouterGroup{engine: e}
 	e.groups = []*RouterGroup{e.RouterGroup}
+
 	return e
 }
 
@@ -88,9 +92,18 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	c := NewContext(w, r)
 	c.handlers = middlewares
+	c.engine = e
 	e.router.handle(c)
 }
 
 func (e *Engine) Run(addr string) error {
 	return http.ListenAndServe(addr, e)
+}
+
+func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
+	e.funcMap = funcMap
+}
+
+func (e *Engine) LoadHTMLGlob(pattern string) {
+	e.htmlTemplate = template.Must(template.New("").Funcs(e.funcMap).ParseGlob(pattern))
 }
