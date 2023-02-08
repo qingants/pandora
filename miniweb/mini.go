@@ -3,6 +3,7 @@ package miniweb
 import (
 	"log"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -57,6 +58,25 @@ func (g *RouterGroup) GET(pattern string, handler HandleFunc) {
 
 func (g *RouterGroup) POST(pattern string, handler HandleFunc) {
 	g.addRouter("POST", pattern, handler)
+}
+
+func (g *RouterGroup) createStaticHandler(relativePath string, fs http.FileSystem) HandleFunc {
+	absPath := path.Join(g.prefix, relativePath)
+	fileSever := http.StripPrefix(absPath, http.FileServer(fs))
+	return func(ctx *Context) {
+		file := ctx.Param("filepath")
+		if _, err := fs.Open(file); err != nil {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
+		fileSever.ServeHTTP(ctx.Writer, ctx.Request)
+	}
+}
+
+func (g *RouterGroup) Static(relativePath, root string) {
+	hander := g.createStaticHandler(relativePath, http.Dir(root))
+	urlPattern := path.Join(relativePath, "/*filepath")
+	g.GET(urlPattern, hander)
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {

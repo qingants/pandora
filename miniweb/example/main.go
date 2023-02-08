@@ -61,5 +61,7 @@ func main() {
 		})
 	}
 
+	r.Static("/assets", "/Users/luotuo/gospace/src/pandora/")
+
 	r.Run("127.0.0.1:8888")
 }
