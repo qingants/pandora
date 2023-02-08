@@ -21,6 +21,7 @@ func middlewareExample() miniweb.HandleFunc {
 func main() {
 	r := miniweb.NewEngine()
 	r.Use(miniweb.Logger())
+	r.Use(miniweb.Recovery())
 
 	// r.GET("/", func(ctx *miniweb.Context) {
 	// 	ctx.HTML(http.StatusOK, "<h1>mini<h1>")
@@ -77,6 +78,10 @@ func main() {
 
 	r.GET("/tmpl", func(ctx *miniweb.Context) {
 		ctx.HTML(http.StatusOK, "mini.tmpl", nil)
+	})
+
+	r.GET("/panic", func(ctx *miniweb.Context) {
+		panic("miniweb panic")
 	})
 
 	r.Run("127.0.0.1:8888")
