@@ -31,6 +31,7 @@ var DefaultServer = NewServer()
 
 func (s *Server) Accept(l net.Listener) {
 	for {
+		log.Printf("Accept tcp connection %s", l.Addr().String())
 		conn, err := l.Accept()
 		if err != nil {
 			log.Println("rpc server: accept error ", err)
@@ -41,6 +42,8 @@ func (s *Server) Accept(l net.Listener) {
 }
 
 func (s *Server) ServerConn(conn io.ReadWriteCloser) {
+	log.Printf("%s rpc server accept conn:", reflect.TypeOf(s).String())
+
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -60,14 +63,15 @@ func (s *Server) ServerConn(conn io.ReadWriteCloser) {
 		log.Printf("rpc sever: invalid codec type %s", opt.CodecType)
 		return
 	}
-	s.serverCodec(f(conn))
+	s.serveCodec(f(conn))
 }
 
 var invalidRequest = struct{}{}
 
-func (s *Server) serverCodec(codec Codec) {
+func (s *Server) serveCodec(codec Codec) {
 	// sending := new(sync.Mutex)
 	// wg := new(sync.WaitGroup)
+	log.Println("rpc server server codec")
 	for {
 		req, err := s.readRequest(codec)
 		if err != nil {
@@ -94,6 +98,7 @@ type request struct {
 }
 
 func (s *Server) readHead(cc Codec) (*Head, error) {
+	log.Println("rpc server.readHead")
 	var head Head
 	if err := cc.ReadHead(&head); err != nil {
 		if err != io.EOF && err != io.ErrUnexpectedEOF {
@@ -121,7 +126,7 @@ func (s *Server) readRequest(cc Codec) (*request, error) {
 }
 
 func (s *Server) handleRequest(cc Codec, r *request) {
-	log.Printf("minirpc server seq %d ", r.h.Seq)
+	log.Printf("-- minirpc server seq %d ", r.h.Seq)
 	r.reply = reflect.ValueOf(fmt.Sprintf("minirpc resp %d", r.h.Seq))
 	s.sendResponse(cc, r.h, r.arg.Interface())
 }
