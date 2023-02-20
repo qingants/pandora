@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"reflect"
+	"sync"
 )
 
 const MagicNumber = 0x3bef5c
@@ -69,8 +70,8 @@ func (s *Server) ServerConn(conn io.ReadWriteCloser) {
 var invalidRequest = struct{}{}
 
 func (s *Server) serveCodec(codec Codec) {
-	// sending := new(sync.Mutex)
-	// wg := new(sync.WaitGroup)
+	sending := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
 	log.Println("rpc server server codec")
 	for {
 		req, err := s.readRequest(codec)
@@ -79,13 +80,13 @@ func (s *Server) serveCodec(codec Codec) {
 				break
 			}
 			req.h.Error = err.Error()
-			s.sendResponse(codec, req.h, invalidRequest)
+			s.sendResponse(codec, req.h, invalidRequest, sending)
 			continue
 		}
-		// wg.Add(1)
-		go s.handleRequest(codec, req)
+		wg.Add(1)
+		go s.handleRequest(codec, req, sending, wg)
 	}
-	// wg.Wait()
+	wg.Wait()
 	err := codec.Close()
 	if err != nil {
 		log.Printf("codec close error %s\n", err.Error())
@@ -125,13 +126,18 @@ func (s *Server) readRequest(cc Codec) (*request, error) {
 	return &body, nil
 }
 
-func (s *Server) handleRequest(cc Codec, r *request) {
+func (s *Server) handleRequest(cc Codec, r *request, sending *sync.Mutex, wg *sync.WaitGroup) {
 	log.Printf("-- minirpc server seq %d ", r.h.Seq)
+	defer wg.Done()
+
 	r.reply = reflect.ValueOf(fmt.Sprintf("minirpc resp %d", r.h.Seq))
-	s.sendResponse(cc, r.h, r.arg.Interface())
+	s.sendResponse(cc, r.h, r.arg.Interface(), sending)
 }
 
-func (s *Server) sendResponse(cc Codec, head *Head, body any) {
+func (s *Server) sendResponse(cc Codec, head *Head, body any, sending *sync.Mutex) {
+	sending.Lock()
+	defer sending.Unlock()
+
 	if err := cc.Write(head, body); err != nil {
 		log.Println("rpc server: write response error ", err)
 	}

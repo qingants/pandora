@@ -57,7 +57,7 @@ func (c *Client) IsAvailable() bool {
 
 func (c *Client) registerCall(call *Call) (uint64, error) {
 	c.lock.Lock()
-	defer c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.closing || c.shutdown {
 		return 0, ErrShutdown
 	}
@@ -69,12 +69,23 @@ func (c *Client) registerCall(call *Call) (uint64, error) {
 }
 
 func (c *Client) removeCall(seq uint64) *Call {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	// if c.closing || c.shutdown {
+	// 	return nil
+	// }
 	call := c.pending[seq]
 	delete(c.pending, seq)
 	return call
 }
 
 func (c *Client) terminateCalls(err error) {
+	c.sending.Lock()
+	defer c.sending.Unlock()
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	c.shutdown = true
 	for _, call := range c.pending {
 		call.Error = nil
@@ -183,7 +194,7 @@ func (c *Client) Send(call *Call) {
 	c.sending.Lock()
 	defer c.sending.Unlock()
 
-	log.Println("write...1.")
+	// log.Println("write...1.")
 	seq, err := c.registerCall(call)
 	if err != nil {
 		log.Printf("rpc client register call: %v", err)
@@ -191,12 +202,12 @@ func (c *Client) Send(call *Call) {
 		call.done()
 		return
 	}
-	log.Println("write...2.")
+	// log.Println("write...2.")
 	c.head.Method = call.Method
 	c.head.Seq = seq
 	c.head.Error = ""
 
-	log.Println("write...3.")
+	// log.Println("write...3.")
 	if err := c.codec.Write(&c.head, call.Args); err != nil {
 		call := c.removeCall(seq)
 		if call != nil {
