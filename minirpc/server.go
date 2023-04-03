@@ -2,11 +2,12 @@ package minirpc
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"log"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -22,7 +23,9 @@ var DefaultOption = &Option{
 	CodecType:   GobType,
 }
 
-type Server struct{}
+type Server struct {
+	serviceMap sync.Map
+}
 
 func NewServer() *Server {
 	return &Server{}
@@ -96,6 +99,8 @@ func (s *Server) serveCodec(codec Codec) {
 type request struct {
 	h          *Head
 	arg, reply reflect.Value
+	mtype      *methodType
+	svc        *service
 }
 
 func (s *Server) readHead(cc Codec) (*Head, error) {
@@ -115,23 +120,39 @@ func (s *Server) readRequest(cc Codec) (*request, error) {
 	if err != nil {
 		return nil, err
 	}
-	body := request{
+	req := request{
 		h: head,
 	}
-	body.arg = reflect.New(reflect.TypeOf(""))
-	if err = cc.ReadBody(body.arg.Interface()); err != nil {
+	req.svc, req.mtype, err = s.findService(head.Method)
+	if err != nil {
+		return &req, err
+	}
+	req.arg = req.mtype.newArgv()
+	req.reply = req.mtype.newReplyv()
+	argvi := req.arg.Interface()
+	if req.arg.Type().Kind() != reflect.Ptr {
+		argvi = req.arg.Addr().Interface()
+	}
+	if err = cc.ReadBody(argvi); err != nil {
 		log.Println("rpc server: read argv err: ", err)
+		return &req, nil
 	}
 
-	return &body, nil
+	return &req, nil
 }
 
 func (s *Server) handleRequest(cc Codec, r *request, sending *sync.Mutex, wg *sync.WaitGroup) {
 	log.Printf("-- minirpc server seq %d ", r.h.Seq)
 	defer wg.Done()
+	err := r.svc.call(r.mtype, r.arg, r.reply)
+	if err != nil {
+		r.h.Error = err.Error()
+		s.sendResponse(cc, r.h, invalidRequest, sending)
+		return
+	}
 
-	r.reply = reflect.ValueOf(fmt.Sprintf("minirpc resp %d", r.h.Seq))
-	s.sendResponse(cc, r.h, r.arg.Interface(), sending)
+	// r.reply = reflect.ValueOf(fmt.Sprintf("minirpc resp %d", r.h.Seq))
+	s.sendResponse(cc, r.h, r.reply.Interface(), sending)
 }
 
 func (s *Server) sendResponse(cc Codec, head *Head, body any, sending *sync.Mutex) {
@@ -145,4 +166,35 @@ func (s *Server) sendResponse(cc Codec, head *Head, body any, sending *sync.Mute
 
 func Accept(l net.Listener) {
 	DefaultServer.Accept(l)
+}
+
+func (s *Server) Register(rcvr any) error {
+	service := NewService(rcvr)
+	if _, dup := s.serviceMap.LoadOrStore(service.name, service); dup {
+		return errors.New("rpc: service already defined: " + service.name)
+	}
+	return nil
+}
+
+func Register(val any) error {
+	return DefaultServer.Register(val)
+}
+
+func (s *Server) findService(serviceMethod string) (svc *service, mtype *methodType, err error) {
+	dot := strings.LastIndex(serviceMethod, ".")
+	if dot < 0 {
+		err = errors.New("rpc server: service.method request ill-formed" + serviceMethod)
+	}
+	serviceName, methodName := serviceMethod[:dot], serviceMethod[dot+1:]
+	svci, ok := s.serviceMap.Load(serviceName)
+	if !ok {
+		err = errors.New("rpc server: can not find service" + serviceName)
+		return
+	}
+	svc = svci.(*service)
+	mtype = svc.method[methodName]
+	if mtype == nil {
+		err = errors.New("rpc server: can not find method " + methodName)
+	}
+	return
 }
