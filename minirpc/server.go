@@ -3,24 +3,29 @@ package minirpc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 const MagicNumber = 0x3bef5c
 
 type Option struct {
-	MagicNumber int
-	CodecType   string
+	MagicNumber    int
+	CodecType      string
+	ConnectTimeout time.Duration
+	HandleTimeout  time.Duration
 }
 
 var DefaultOption = &Option{
-	MagicNumber: MagicNumber,
-	CodecType:   GobType,
+	MagicNumber:    MagicNumber,
+	CodecType:      GobType,
+	ConnectTimeout: time.Second * 10,
 }
 
 type Server struct {
@@ -67,12 +72,12 @@ func (s *Server) ServerConn(conn io.ReadWriteCloser) {
 		log.Printf("rpc sever: invalid codec type %s", opt.CodecType)
 		return
 	}
-	s.serveCodec(f(conn))
+	s.serveCodec(f(conn), &opt)
 }
 
 var invalidRequest = struct{}{}
 
-func (s *Server) serveCodec(codec Codec) {
+func (s *Server) serveCodec(codec Codec, opt *Option) {
 	sending := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	log.Println("rpc server server codec")
@@ -87,7 +92,7 @@ func (s *Server) serveCodec(codec Codec) {
 			continue
 		}
 		wg.Add(1)
-		go s.handleRequest(codec, req, sending, wg)
+		go s.handleRequest(codec, req, sending, wg, opt.HandleTimeout)
 	}
 	wg.Wait()
 	err := codec.Close()
@@ -141,18 +146,37 @@ func (s *Server) readRequest(cc Codec) (*request, error) {
 	return &req, nil
 }
 
-func (s *Server) handleRequest(cc Codec, r *request, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (s *Server) handleRequest(cc Codec, r *request, sending *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	log.Printf("-- minirpc server seq %d ", r.h.Seq)
 	defer wg.Done()
-	err := r.svc.call(r.mtype, r.arg, r.reply)
-	if err != nil {
-		r.h.Error = err.Error()
-		s.sendResponse(cc, r.h, invalidRequest, sending)
+
+	called := make(chan struct{})
+	sent := make(chan struct{})
+	go func() {
+		err := r.svc.call(r.mtype, r.arg, r.reply)
+		called <- struct{}{}
+		if err != nil {
+			r.h.Error = err.Error()
+			s.sendResponse(cc, r.h, invalidRequest, sending)
+			sent <- struct{}{}
+			return
+		}
+		s.sendResponse(cc, r.h, r.reply.Interface(), sending)
+	}()
+
+	if timeout == 0 {
+		<-called
+		<-sent
 		return
 	}
 
-	// r.reply = reflect.ValueOf(fmt.Sprintf("minirpc resp %d", r.h.Seq))
-	s.sendResponse(cc, r.h, r.reply.Interface(), sending)
+	select {
+	case <-time.After(timeout):
+		r.h.Error = fmt.Sprintf("rpc server: request handle timeout: expect within %s", timeout)
+		s.sendResponse(cc, r.h, invalidRequest, sending)
+	case <-called:
+		<-sent
+	}
 }
 
 func (s *Server) sendResponse(cc Codec, head *Head, body any, sending *sync.Mutex) {

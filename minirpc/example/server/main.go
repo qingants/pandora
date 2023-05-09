@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"sync"
@@ -61,7 +62,7 @@ func main() {
 				B: i * i,
 			}
 			var reply int
-			if err := client.Call("Foo.Sum", args, &reply); err != nil {
+			if err := client.Call(context.Background(), "Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error ", err)
 			}
 			log.Printf("%d + %d = %d", args.A, args.B, reply)

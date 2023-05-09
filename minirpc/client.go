@@ -1,6 +1,7 @@
 package minirpc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 type Call struct {
@@ -217,9 +219,15 @@ func (c *Client) Send(call *Call) {
 	}
 }
 
-func (c *Client) Call(method string, argv, reply any) error {
-	call := <-c.Go(method, argv, reply, make(chan *Call, 1)).Done
-	return call.Error
+func (c *Client) Call(ctx context.Context, method string, argv, reply any) error {
+	call := c.Go(method, argv, reply, make(chan *Call, 1))
+	select {
+	case <-ctx.Done():
+		c.removeCall(call.Seq)
+		return errors.New("rpc client: call timeout failed: " + ctx.Err().Error())
+	case call := <-call.Done:
+		return call.Error
+	}
 }
 
 func (c *Client) Go(method string, argv, reply any, done chan *Call) *Call {
@@ -236,4 +244,49 @@ func (c *Client) Go(method string, argv, reply any, done chan *Call) *Call {
 	}
 	c.Send(call)
 	return call
+}
+
+type ClientResult struct {
+	client *Client
+	err    error
+}
+
+type NewClientFunc func(conn net.Conn, opt *Option) (client *Client, err error)
+
+func dailTimeout(f NewClientFunc, network, addr string, opts ...*Option) (client *Client, err error) {
+	opt, err := parseOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.DialTimeout(network, addr, opt.ConnectTimeout)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+
+	ch := make(chan ClientResult)
+	go func() {
+		client, err := f(conn, opt)
+		ch <- ClientResult{client: client, err: err}
+	}()
+
+	if opt.ConnectTimeout == 0 {
+		result := <-ch
+		return result.client, result.err
+	}
+
+	select {
+	case <-time.After(opt.ConnectTimeout):
+		return nil, fmt.Errorf("rpc client: connect timeout: expect within %s", opt.ConnectTimeout)
+	case result := <-ch:
+		return result.client, result.err
+	}
+}
+
+func Dail(network, addr string, opts ...*Option) (*Client, error) {
+	return dailTimeout(NewClient, network, addr, opts...)
 }

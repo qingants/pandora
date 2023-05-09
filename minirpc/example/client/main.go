@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -37,7 +38,7 @@ func main() {
 			log.Printf("req: %s", args)
 
 			var reply string
-			err := client.Call("User.SayHello", args, &reply)
+			err := client.Call(context.Background(), "User.SayHello", args, &reply)
 			if err != nil {
 				log.Fatalf("rpc client call SayHello error %s", err.Error())
 			} else {
