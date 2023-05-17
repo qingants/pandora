@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -14,6 +15,12 @@ import (
 )
 
 const MagicNumber = 0x3bef5c
+
+const (
+	connected        = "200 connected to mini RPC"
+	defaultRPCPath   = "/_minirpc_"
+	defaultDebugPath = "/debug/minirpc"
+)
 
 type Option struct {
 	MagicNumber    int
@@ -200,6 +207,7 @@ func (s *Server) Register(rcvr any) error {
 	return nil
 }
 
+// Register publishes the ceiver's methods in the DefaultServer
 func Register(val any) error {
 	return DefaultServer.Register(val)
 }
@@ -221,4 +229,37 @@ func (s *Server) findService(serviceMethod string) (svc *service, mtype *methodT
 		err = errors.New("rpc server: can not find method " + methodName)
 	}
 	return
+}
+
+// ServeHTTP implements an http.Handler that answers RPC request
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Print("rpc hijacking", r.RemoteAddr, ":", err.Error())
+		return
+	}
+
+	_, _ = io.WriteString(conn, "HTTP/1.0 "+connected+"\n\n")
+	s.ServerConn(conn)
+}
+
+// HandleHTTP register an HTTP handler for RPC messages on rpcPath
+// and a debugging handler on debug path
+// It is still necessary to invoke http.Serve(), typically in a go statement
+func (s *Server) HandleHTTP() {
+	http.Handle(defaultDebugPath, debugHTTP{s})
+	http.Handle(defaultRPCPath, s)
+	log.Println("rpc server debug path: ", defaultDebugPath)
+}
+
+// HandleHTTP is a convenient approach for default server to register HTTP handlers
+func HandleHTTP() {
+	DefaultServer.HandleHTTP()
 }
