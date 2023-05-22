@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +48,7 @@ var DefaultServer = NewServer()
 
 func (s *Server) Accept(l net.Listener) {
 	for {
-		log.Printf("Accept tcp connection %s", l.Addr().String())
+		log.Printf("accept tcp connection %s", l.Addr().String())
 		conn, err := l.Accept()
 		if err != nil {
 			log.Println("rpc server: accept error ", err)
@@ -120,7 +121,8 @@ func (s *Server) readHead(cc Codec) (*Head, error) {
 	var head Head
 	if err := cc.ReadHead(&head); err != nil {
 		if err != io.EOF && err != io.ErrUnexpectedEOF {
-			log.Printf("rpc server: read head err: %s", err.Error())
+			debug.PrintStack()
+			log.Printf("rpc server: read head error: %s", err.Error())
 		}
 		return nil, err
 	}
