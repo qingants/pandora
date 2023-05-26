@@ -32,6 +32,27 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/minirpc/example/client/main.go"
-        }
+        },
+        {
+            "name": "mimirpc-multi-server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/minirpc/example/multi/main.go"
+        },
+        {
+            "name": "mimirpc-registry-server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/minirpc/example/registry/main.go"
+        },
+        {
+            "name": "mimiorm-server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/miniorm/example/main.go"
+        },
     ]
 }
